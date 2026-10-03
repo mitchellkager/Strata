@@ -16,9 +16,10 @@ PORT="${PORT:-8080}"
 API_KEY="${API_KEY:-}"
 KV="${KV:-}"                    # int8 | q4_0 | k8v4; empty: setup.py's own default (int8)
 GPUS="${GPUS:-}"                # "0,2" or "all": one model across several cards (docs/MULTI_GPU.md)
-GPU="${GPU:-}"                  # one card, numbered as nvidia-smi numbers them
+GPU="${GPU:-}"                  # one card, as nvidia-smi numbers it (AMD: as setup lists it, HIP's order)
 LAYER_SPLIT="${LAYER_SPLIT:-}"  # with GPUS: where each later card's layers start (default: auto)
 LOW_RAM="${LOW_RAM:-auto}"      # on: the experts come from the pack's experts.bin, not from RAM
+BACKEND="${BACKEND:-}"          # cuda | hip; empty: setup.py chooses (hip in the AMD image)
 
 # setup.py starts the newest strata-*.json it finds, so link in exactly the one
 # this family and model were set up with. The config is the recorded output of
@@ -42,6 +43,7 @@ if [ "${REINSTALL:-0}" = "1" ] || [ ! -f "$cfg" ]; then
   set -- --family "$FAMILY" --model "$MODEL" --context "$CONTEXT" --vision "$VISION" \
     --data-dir "$STRATA_DATA" --host "$HOST" --api-key "$API_KEY" \
     --port "$PORT" --no-start --low-ram "$LOW_RAM"
+  if [ -n "$BACKEND" ]; then set -- "$@" --backend "$BACKEND"; fi
   if [ -n "$KV" ]; then set -- "$@" --kv "$KV"; fi
   if [ -n "$GPUS" ]; then set -- "$@" --gpus "$GPUS"; fi
   if [ -n "$GPU" ]; then set -- "$@" --gpu "$GPU"; fi

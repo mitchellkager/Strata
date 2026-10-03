@@ -70,8 +70,9 @@ sudo), and compiles the engine on your PC for the card (10-20 minutes, once; it 
 `sudo apt install build-essential git`). Several AMD cards share the model with `--gpus`, as on NVIDIA.
 
 What differs from NVIDIA for now: pictures are read by the image encoder on the CPU (`--vision cpu`, 10-30 s per
-picture), `--calibrate` is NVIDIA-only, and Unsloth's 4-bit model needs an NVIDIA card. Measurements per card, the
-build by hand and the tuning tables: [AMD_HIP.md](AMD_HIP.md).
+picture), `--calibrate` is NVIDIA-only, and Unsloth's 4-bit model needs an NVIDIA card. In Docker, the AMD image
+is built from `Dockerfile.amd` ([Docker](#docker-linux)). Measurements per card, the build by hand and the
+tuning tables: [AMD_HIP.md](AMD_HIP.md).
 
 ## Two or three cards
 
@@ -88,7 +89,10 @@ split pays only when no single card holds the model's experts ([AMD_HIP.md](AMD_
 
 ## Docker (Linux)
 
-The same idea, in a container (NVIDIA cards).
+The same idea, in a container: an image for NVIDIA cards (`Dockerfile`) and one for AMD
+(`Dockerfile.amd`).
+
+**NVIDIA cards.**
 
 1. Host: Docker with the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html)
    and a driver **580 or newer** (CUDA 13.0).
@@ -120,6 +124,30 @@ The same idea, in a container (NVIDIA cards).
    The server listens on `0.0.0.0:8080` by default; set `-e API_KEY=<secret>` before exposing the port
    to a network. The image has a `HEALTHCHECK` on `/health`, so `docker ps` shows the container
    healthy once the model is loaded, and `GET /v1/status` says what it is running.
+
+**AMD cards.** The same steps from `Dockerfile.amd` instead (ROCm comes from AMD's wheels, the
+same install setup does natively; no container toolkit - HIP needs the kernel's amdgpu driver, which
+stock kernels have, and two device nodes):
+
+1. Build (compiles the engine into the image; one image per GPU family, since AMD's wheels hold one
+   family's libraries - the default is RX 7900 / 7800, gfx1100 + gfx1101):
+   `docker build -f Dockerfile.amd -t strata-amd .`
+   `--build-arg HIP_ARCHS=gfx1200,gfx1201` for the RX 9060 / 9070 series and the Radeon AI PRO R9700,
+   `--build-arg HIP_ARCHS=gfx1201` for the 9070 only (faster), `--build-arg HIP_ARCHS=gfx1030` for the
+   RX 6800 / 6900 series (unvalidated). Add `--build-arg BUILD_VISION=no` to skip the image encoder
+   (it runs on the CPU: there is no HIP encoder build yet, so `VISION` is `no` or `cpu`).
+2. Run (the first start downloads the ~70 GB model, then starts; later starts go straight to serving):
+   `docker run --rm -p 8080:8080 --ulimit memlock=-1 --device /dev/kfd --device /dev/dri \
+     -v strata-data:/data -e MODEL=IQ2_XS strata-amd`
+
+   The setup choices are the same env vars as for NVIDIA: `-e MODEL`, `-e FAMILY`, `-e CONTEXT`,
+   `-e VISION=cpu`, `-e KV`, `-e LOW_RAM`, `-e HOST`, `-e PORT`, `-e API_KEY` (add it before exposing
+   the port to a network), and `-e REINSTALL=1` to change settings for a model already set up.
+   `GPUS` and `GPU` pin cards numbered as setup lists them (HIP's order), so several cards of the
+   family share the model with `-e GPUS=1,0` (the first is the main card); a split pays only when no
+   single card holds the model's experts ([AMD_HIP.md](AMD_HIP.md)). The image otherwise behaves like
+   the NVIDIA one: the engine is part of the image, the model lives on the volume, `HEALTHCHECK`
+   on `/health`.
 
 ## Updating
 

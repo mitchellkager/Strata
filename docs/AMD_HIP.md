@@ -51,6 +51,15 @@ the kernel's amdgpu driver (no ROCm install needed):
 
 The rest of setup is the same as on NVIDIA: the model download, the start script, the server.
 
+## Docker (Linux)
+
+The same install is available as a container image, built from `Dockerfile.amd`: the engine and ROCm (AMD's
+wheels, the same install as above) are compiled into the image, so the first start only downloads the model.
+One image per GPU family (`HIP_ARCHS=gfx1100,gfx1101` the default; `gfx1200,gfx1201` for the RX 9060 /
+9070 series, `gfx1030` for the RX 6800 / 6900 series). Run with `--device /dev/kfd --device /dev/dri` (the
+host needs the kernel's amdgpu driver, which stock kernels have): [INSTALL.md](INSTALL.md#docker-linux) has
+the commands and the env vars.
+
 ## Windows
 
 Since 0.1.34 an AMD card on Windows is set up like an NVIDIA one: download Strata, double-click `START-HERE.bat`.
